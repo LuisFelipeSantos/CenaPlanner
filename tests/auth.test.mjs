@@ -38,6 +38,13 @@ test('signup requiring email confirmation does not establish a session', async (
   assert.deepEqual(await (await handleAuth(request(valid), 'signup', deps)).json(), {ok: true, needsConfirmation: true});
   assert.equal(deps.saved.length, 0);
 });
+test('signup sends the public application origin as confirmation redirect', async () => {
+  let path = '';
+  const deps = dependencies(new Response(JSON.stringify({ id: 'new-user' }), { status: 200 }));
+  deps.request = async (received) => { path = received; return new Response(JSON.stringify({ id: 'new-user' }), { status: 200 }); };
+  await handleAuth(request(valid), 'signup', deps);
+  assert.equal(path, '/signup?redirect_to=http%3A%2F%2Flocalhost%3A3000');
+});
 for (const [status, code, text] of [[400,'invalid_credentials','E-mail ou senha incorretos.'],[400,'email_not_confirmed','Confirme seu e-mail'],[429,'over_request_rate_limit','Muitas tentativas'],[500,'unexpected_failure','indisponível']]) test(`handles ${code}`, async () => {
   const deps = dependencies(Response.json({code: status, error_code: code}, {status}));
   const response = await handleAuth(request(valid), 'login', deps);

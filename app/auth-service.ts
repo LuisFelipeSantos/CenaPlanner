@@ -1,4 +1,4 @@
-import { isAllowedOrigin } from './request-origin.ts';
+import { isAllowedOrigin, publicAppOrigin } from './request-origin.ts';
 // Framework-independent so tests exercise the same validation as the routes.
 type Session = { access_token: string; refresh_token: string; expires_in?: number };
 type Dependencies = { request: (path: string, init?: RequestInit) => Promise<Response>; saveSession: (access: string, refresh: string, expires?: number) => Promise<void> };
@@ -26,7 +26,8 @@ export async function handleAuth(request: Request, mode: 'login' | 'signup', dep
   if (mode === 'signup' && (!name || name.length > 100 || password.length < 6))
     return reply({ error: 'Informe seu nome e uma senha com pelo menos 6 caracteres.' }, 400);
   try {
-    const response = await deps.request(mode === 'login' ? '/token?grant_type=password' : '/signup', {
+    const authPath = mode === 'login' ? '/token?grant_type=password' : `/signup?redirect_to=${encodeURIComponent(publicAppOrigin(request))}`;
+    const response = await deps.request(authPath, {
       method: 'POST', body: JSON.stringify({ email, password, ...(mode === 'signup' ? { data: { name } } : {}) }),
     });
     const data = await response.json() as Partial<Session> & { code?: string; error_code?: string; id?: string; user?: { id?: string } };

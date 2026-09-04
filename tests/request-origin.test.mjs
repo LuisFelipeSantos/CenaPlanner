@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isAllowedOrigin } from '../app/request-origin.ts';
+import { isAllowedOrigin, publicAppOrigin } from '../app/request-origin.ts';
 const publicUrl = 'https://example.onrender.com';
 const req = (origin, extra = {}) => new Request('http://localhost:10000/api/auth/login', { headers: { ...(origin ? { origin } : {}), ...extra } });
 test('proxy accepts configured public origin, rejects foreign origins and spoofed forwarding', () => {
@@ -21,4 +21,7 @@ test('Render server-provided URL is used automatically', () => {
   process.env.RENDER_EXTERNAL_URL = publicUrl;
   try { assert.equal(isAllowedOrigin(req(publicUrl)), true); }
   finally { if (previous === undefined) delete process.env.RENDER_EXTERNAL_URL; else process.env.RENDER_EXTERNAL_URL = previous; }
+});
+test('public application origin is safe and excludes paths', () => {
+  assert.equal(publicAppOrigin(new Request(`${publicUrl}/api/auth/signup`)), publicUrl);
 });
