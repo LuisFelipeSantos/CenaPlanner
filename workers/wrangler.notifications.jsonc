@@ -1,0 +1,9 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "controle-financeiro-notifications",
+  "main": "notification-scheduler.ts",
+  "compatibility_date": "2026-09-03",
+  "workers_dev": false,
+  "triggers": {"crons": ["0 12 * * *", "*/5 * * * *"]},
+  "observability": {"enabled": true}
+}

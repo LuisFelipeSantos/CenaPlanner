@@ -1,0 +1,1 @@
+CREATE INDEX `idx_entries_user_period` ON `entries` (`user_id`,`year`,`month`);
