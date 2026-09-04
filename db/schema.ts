@@ -83,6 +83,7 @@ export const categories = sqliteTable(
     userId: text('user_id').notNull(),
     name: text('name').notNull(),
     normalizedKey: text('normalized_key'),
+    monthlyBudgetCents: integer('monthly_budget_cents'),
     archived: integer('archived').notNull().default(0),
   },
   (t) => [
@@ -124,6 +125,7 @@ export const ledgerEntries = sqliteTable(
     status: text('status', { enum: ['pago', 'pendente', 'vencido'] }).notNull(),
     entryDate: text('entry_date').notNull(),
     dueDate: text('due_date'),
+    paidAt: text('paid_at'),
     sourceKey: text('source_key').notNull(),
     templateId: text('template_id'),
     deletedAt: text('deleted_at'),

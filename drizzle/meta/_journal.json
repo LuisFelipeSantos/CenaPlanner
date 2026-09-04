@@ -57,6 +57,20 @@
       "when": 1788471822013,
       "tag": "0007_military_swarm",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788523834918,
+      "tag": "0008_freezing_texas_twister",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1788524976474,
+      "tag": "0009_loose_vampiro",
+      "breakpoints": true
     }
   ]
 }

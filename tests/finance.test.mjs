@@ -84,6 +84,176 @@ function draft(overrides = {}) {
   };
 }
 
+test('batch payments and deletions affect only selected occurrences and preserve payment timestamps', async () => {
+  const { service, db, sqlite } = await setup();
+  await service.createEntry(
+    draft({ repeat: 'count', repetitionCount: 3, status: 'pendente' }),
+  );
+  const ids = sqlite
+    .prepare(
+      'SELECT id FROM ledger_entries WHERE template_id IS NOT NULL ORDER BY period',
+    )
+    .all()
+    .map((r) => r.id);
+  const timed = financeService(
+    db,
+    'user-a',
+    () => new Date('2026-09-04T12:00:00Z'),
+  );
+  await timed.batchEntries({ ids: [ids[0], ids[1], ids[1]], action: 'pay' });
+  assert.equal(
+    sqlite
+      .prepare(
+        "SELECT count(*) AS n FROM ledger_entries WHERE template_id IS NOT NULL AND status='pago'",
+      )
+      .get().n,
+    2,
+  );
+  assert.equal(
+    sqlite.prepare('SELECT paid_at FROM ledger_entries WHERE id=?').get(ids[0])
+      .paid_at,
+    '2026-09-04T12:00:00.000Z',
+  );
+  await assert.rejects(
+    timed.batchEntries({ ids: [ids[0], 'missing'], action: 'delete' }),
+  );
+  assert.equal(
+    sqlite
+      .prepare('SELECT deleted_at FROM ledger_entries WHERE id=?')
+      .get(ids[0]).deleted_at,
+    null,
+  );
+  await timed.batchEntries({ ids: [ids[0]], action: 'delete' });
+  assert.equal(
+    sqlite
+      .prepare('SELECT deleted_at FROM ledger_entries WHERE id=?')
+      .get(ids[2]).deleted_at,
+    null,
+  );
+  await assert.rejects(timed.batchEntries({ ids: [], action: 'pay' }));
+  await assert.rejects(
+    timed.batchEntries({ ids: Array(101).fill(ids[2]), action: 'pay' }),
+  );
+  await assert.rejects(
+    timed.batchEntries({ ids: [ids[2]], action: 'anything' }),
+  );
+});
+
+test('batch rejects foreign ids before writes and rolls back a failed batch', async () => {
+  const { service, db, sqlite } = await setup();
+  await service.createEntry(draft({ repeat: 'once', status: 'pendente' }));
+  const id = sqlite
+    .prepare("SELECT id FROM ledger_entries WHERE source_key LIKE 'manual:%'")
+    .get().id;
+  const other = financeService(db, 'user-b');
+  await other.saveProfile({
+    name: 'Outro',
+    monthlySalary: 1,
+    initialPeriod: '2020-01',
+  });
+  await assert.rejects(other.batchEntries({ ids: [id], action: 'pay' }));
+  assert.equal(
+    sqlite.prepare('SELECT status FROM ledger_entries WHERE id=?').get(id)
+      .status,
+    'pendente',
+  );
+  await service.createEntry(draft({ repeat: 'once', status: 'pendente' }));
+  const ids = sqlite
+    .prepare("SELECT id FROM ledger_entries WHERE source_key LIKE 'manual:%'")
+    .all()
+    .map((r) => r.id);
+  sqlite.exec(
+    `CREATE TRIGGER stop_payment BEFORE UPDATE OF status ON ledger_entries WHEN new.id='${ids[1]}' BEGIN SELECT RAISE(ABORT,'test rollback'); END`,
+  );
+  await assert.rejects(service.batchEntries({ ids, action: 'pay' }));
+  assert.equal(
+    sqlite.prepare('SELECT status FROM ledger_entries WHERE id=?').get(ids[0])
+      .status,
+    'pendente',
+  );
+});
+
+test('category budget is optional, normalized, persisted and preserved by entry saves', async () => {
+  const { service, db } = await setup();
+  await service.saveCategory({ name: ' Mercado ', monthlyBudget: 800 });
+  await service.saveCategory({ name: 'mercado' });
+  assert.equal(
+    (await service.listCategories()).find((c) => c.key === 'mercado')
+      .monthlyBudget,
+    800,
+  );
+  await service.createEntry(draft({ category: 'MERCADO', repeat: 'once' }));
+  assert.equal(
+    (await service.listCategories()).find((c) => c.key === 'mercado')
+      .monthlyBudget,
+    800,
+  );
+  await assert.rejects(
+    service.saveCategory({ name: 'Mercado', monthlyBudget: -1 }),
+  );
+  await assert.rejects(
+    service.saveCategory({ name: 'Mercado', monthlyBudget: 0 }),
+  );
+  await service.saveCategory({ name: 'Mercado', monthlyBudget: null });
+  assert.equal(
+    (await service.listCategories()).find((c) => c.key === 'mercado')
+      .monthlyBudget,
+    null,
+  );
+  const other = financeService(db, 'user-b');
+  await other.saveProfile({
+    name: 'Outro',
+    monthlySalary: 1,
+    initialPeriod: '2020-01',
+  });
+  assert.ok(!(await other.listCategories()).some((c) => c.key === 'mercado'));
+});
+
+test('payment timestamps persist, preserve retries, clear on pending and isolate users', async () => {
+  const { db, service } = await setup();
+  await service.createEntry(draft({ repeat: 'once', status: 'pendente' }));
+  const entry = (await month(service, '2020-12')).find((e) => !e.isSalary);
+  const paid = financeService(
+    db,
+    'user-a',
+    () => new Date('2026-09-04T13:00:00Z'),
+  );
+  await paid.changeEntry({ id: entry.id, status: 'pago' });
+  assert.equal(
+    (await month(service, '2020-12')).find((e) => e.id === entry.id).paidAt,
+    '2026-09-04T13:00:00.000Z',
+  );
+  const later = financeService(
+    db,
+    'user-a',
+    () => new Date('2026-09-05T13:00:00Z'),
+  );
+  await later.changeEntry({ id: entry.id, status: 'pago' });
+  assert.equal(
+    (await month(service, '2020-12')).find((e) => e.id === entry.id).paidAt,
+    '2026-09-04T13:00:00.000Z',
+  );
+  await assert.rejects(
+    financeService(db, 'other').changeEntry({ id: entry.id, status: 'pago' }),
+  );
+  await later.changeEntry({ id: entry.id, status: 'pendente' });
+  assert.equal(
+    (await month(service, '2020-12')).find((e) => e.id === entry.id).paidAt,
+    null,
+  );
+  await later.changeEntry({ id: entry.id, status: 'pago' });
+  assert.equal(
+    (await month(service, '2020-12')).find((e) => e.id === entry.id).paidAt,
+    '2026-09-05T13:00:00.000Z',
+  );
+  await later.createEntry(draft({ repeat: 'once', type: 'income' }));
+  assert.ok(
+    (await month(service, '2020-12')).find(
+      (e) => e.type === 'income' && !e.isSalary,
+    ).paidAt,
+  );
+});
+
 test('onboarding persists completion, default settings, categories and first salary atomically', async () => {
   const { service, sqlite } = await setup();
   const profile = await service.getProfile();

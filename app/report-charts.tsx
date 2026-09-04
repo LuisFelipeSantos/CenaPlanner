@@ -32,9 +32,11 @@ const config = {
 export default function ReportCharts({
   entries,
   annual,
+  hideValues = false,
 }: {
   entries: Entry[];
   annual: boolean;
+  hideValues?: boolean;
 }) {
   const categories = categoryTotals(entries).map((c) => ({
     ...c,
@@ -73,12 +75,78 @@ export default function ReportCharts({
     };
   });
   function chart(data: typeof categories, balance = false) {
+    if (hideValues)
+      return (
+        <p className="rounded-lg bg-slate-50 p-4 text-sm">
+          Gráfico oculto no modo privacidade · R$ ••••
+        </p>
+      );
     return (
-      <ChartContainer config={config} className="h-72 w-full">
-        <BarChart data={data} accessibilityLayer>
+      <ChartContainer
+        config={config}
+        className="w-full"
+        style={{ height: balance ? 288 : Math.max(280, data.length * 110) }}
+      >
+        <BarChart
+          data={
+            balance
+              ? data
+              : [...data].sort(
+                  (a, b) =>
+                    Math.max(b.expense, b.income) -
+                    Math.max(a.expense, a.income),
+                )
+          }
+          layout={balance ? 'horizontal' : 'vertical'}
+          accessibilityLayer
+        >
           <CartesianGrid vertical={false} />
-          <XAxis dataKey="name" />
-          <YAxis width={70} />
+          <XAxis
+            type={balance ? 'category' : 'number'}
+            dataKey={balance ? 'name' : undefined}
+          />
+          <YAxis
+            type={balance ? 'number' : 'category'}
+            dataKey={balance ? undefined : 'name'}
+            width={balance ? 70 : 140}
+            interval={balance ? undefined : 0}
+            tick={
+              balance
+                ? { fontSize: 12 }
+                : ({
+                    x,
+                    y,
+                    payload,
+                  }: {
+                    x?: number | string;
+                    y?: number | string;
+                    payload?: { value: string };
+                  }) => {
+                    const lines =
+                      String(payload?.value ?? '').match(/.{1,18}/g) || [];
+                    return (
+                      <text
+                        x={x}
+                        y={y}
+                        textAnchor="end"
+                        fontSize={12}
+                        fill="currentColor"
+                      >
+                        <title>{payload?.value}</title>
+                        {lines.map((line, i) => (
+                          <tspan
+                            key={i}
+                            x={x}
+                            dy={i === 0 ? -(lines.length - 1) * 7 : 14}
+                          >
+                            {line}
+                          </tspan>
+                        ))}
+                      </text>
+                    );
+                  }
+            }
+          />
           <Tooltip formatter={(v) => money.format(Number(v))} />
           <Legend />
           <Bar
@@ -120,7 +188,9 @@ export default function ReportCharts({
         <p>Nenhum lançamento neste recorte.</p>
       ) : (
         <>
-          {chart(categories)}
+          <div className="max-h-[480px] overflow-y-auto">
+            {chart(categories)}
+          </div>
           <div className="overflow-x-auto">
             <Table className="w-full text-sm">
               <TableCaption className="text-left py-2">
@@ -130,9 +200,9 @@ export default function ReportCharts({
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-left p-2">Categoria</TableHead>
-                  <TableHead>Receitas</TableHead>
-                  <TableHead>Despesas</TableHead>
-                  <TableHead>Saldo</TableHead>
+                  <TableHead className="p-2 text-right">Receitas</TableHead>
+                  <TableHead className="p-2 text-right">Despesas</TableHead>
+                  <TableHead className="p-2 text-right">Saldo</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -140,13 +210,13 @@ export default function ReportCharts({
                   <TableRow key={c.name} className="border-t">
                     <TableCell className="p-2">{c.name}</TableCell>
                     <TableCell className="text-right p-2">
-                      {money.format(c.income)}
+                      {hideValues ? 'R$ ••••' : money.format(c.income)}
                     </TableCell>
                     <TableCell className="text-right p-2">
-                      {money.format(c.expense)}
+                      {hideValues ? 'R$ ••••' : money.format(c.expense)}
                     </TableCell>
                     <TableCell className="text-right p-2">
-                      {money.format(c.balance)}
+                      {hideValues ? 'R$ ••••' : money.format(c.balance)}
                     </TableCell>
                   </TableRow>
                 ))}

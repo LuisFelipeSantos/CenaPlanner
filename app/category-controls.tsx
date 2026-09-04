@@ -53,7 +53,12 @@ export function CategoryStatus({
     </fieldset>
   );
 }
-export type Category = { name: string; key: string; archived: boolean };
+export type Category = {
+  name: string;
+  key: string;
+  archived: boolean;
+  monthlyBudget?: number | null;
+};
 export function CategoryInput({
   categories,
   value,

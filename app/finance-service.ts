@@ -1,4 +1,5 @@
 import { categoryKey, categoryName } from './category-utils.ts';
+import { saoPauloDate } from './due-alerts.ts';
 export class FinanceError extends Error {
   status: number;
   constructor(message: string, status = 400) {
@@ -355,13 +356,22 @@ export function financeService(
     await requireProfile();
     const rows = (
       await q(
-        'SELECT name,archived FROM categories WHERE user_id=? ORDER BY id',
+        'SELECT name,archived,monthly_budget_cents FROM categories WHERE user_id=? ORDER BY id',
         userId,
-      ).all<{ name: string; archived: number }>()
+      ).all<{
+        name: string;
+        archived: number;
+        monthly_budget_cents: number | null;
+      }>()
     ).results;
     const groups = new Map<
       string,
-      { name: string; key: string; archived: boolean }
+      {
+        name: string;
+        key: string;
+        archived: boolean;
+        monthlyBudget?: number | null;
+      }
     >();
     for (const row of rows) {
       const key = categoryKey(row.name);
@@ -370,6 +380,10 @@ export function financeService(
         name: previous?.name || categoryName(row.name),
         key,
         archived: !!row.archived && (previous?.archived ?? true),
+        monthlyBudget:
+          row.monthly_budget_cents === null
+            ? (previous?.monthlyBudget ?? null)
+            : row.monthly_budget_cents / 100,
       });
     }
     // Include historical names for report filters, even if no catalog record existed.
@@ -392,6 +406,12 @@ export function financeService(
     await requireProfile();
     const name = categoryName(textValue(body.name, 'categoria'));
     const key = categoryKey(name);
+    const budget =
+      body.monthlyBudget === undefined
+        ? undefined
+        : body.monthlyBudget === null
+          ? null
+          : moneyCents(body.monthlyBudget);
     const rows = (
       await q('SELECT id,name FROM categories WHERE user_id=?', userId).all<{
         id: number;
@@ -404,34 +424,50 @@ export function financeService(
       await db.batch(
         matches.map((r) =>
           q(
-            'UPDATE categories SET archived=? WHERE id=? AND user_id=?',
+            'UPDATE categories SET archived=?,monthly_budget_cents=CASE WHEN ? THEN ? ELSE monthly_budget_cents END WHERE id=? AND user_id=?',
             archived,
+            budget !== undefined ? 1 : 0,
+            budget ?? null,
             r.id,
             userId,
           ),
         ),
       );
-      return { name: categoryName(matches[0].name), key, archived: !!archived };
+      return (await listCategories()).find((c) => c.key === key)!;
     }
     await q(
-      'INSERT INTO categories(user_id,name,normalized_key,archived) VALUES(?,?,?,?) ON CONFLICT DO NOTHING',
+      'INSERT INTO categories(user_id,name,normalized_key,archived,monthly_budget_cents) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING',
       userId,
       name,
       key,
       archived,
+      budget ?? null,
     ).run();
     const saved = await q(
       'SELECT name FROM categories WHERE user_id=? AND normalized_key=?',
       userId,
       key,
     ).first<{ name: string }>();
-    return { name: saved?.name || name, key, archived: !!archived };
+    return {
+      name: saved?.name || name,
+      key,
+      archived: !!archived,
+      monthlyBudget: budget == null ? null : budget / 100,
+    };
   }
   async function listEntries(params: URLSearchParams) {
     await requireProfile();
     const conditions = ['user_id=?', 'deleted_at IS NULL'];
     const args: (string | number)[] = [userId];
-    if (params.has('from') || params.has('to')) {
+    if (params.get('alerts') === 'due') {
+      const today = saoPauloDate(clock());
+      const until = new Date(today + 'T00:00:00Z');
+      until.setUTCDate(until.getUTCDate() + 7);
+      conditions.push(
+        "type='expense' AND status<>'pago' AND due_date IS NOT NULL AND due_date<=?",
+      );
+      args.push(until.toISOString().slice(0, 10));
+    } else if (params.has('from') || params.has('to')) {
       const from = validDate(params.get('from')),
         to = validDate(params.get('to'));
       if (from > to)
@@ -456,7 +492,7 @@ export function financeService(
     );
     const rows = (
       await q(
-        `SELECT id,name,category,amount_cents/100.0 AS amount,type,status,entry_date AS entryDate,due_date AS dueDate,CAST(substr(entry_date,9,2) AS INTEGER) AS due,CAST(substr(period,6,2) AS INTEGER) AS month,CAST(substr(period,1,4) AS INTEGER) AS year,template_id AS templateId,source_key='salary' AS isSalary FROM ledger_entries WHERE ${conditions.join(' AND ')} ORDER BY entry_date,created_at,id`,
+        `SELECT id,name,category,amount_cents/100.0 AS amount,type,status,entry_date AS entryDate,due_date AS dueDate,paid_at AS paidAt,CAST(substr(entry_date,9,2) AS INTEGER) AS due,CAST(substr(period,6,2) AS INTEGER) AS month,CAST(substr(period,1,4) AS INTEGER) AS year,template_id AS templateId,source_key='salary' AS isSalary FROM ledger_entries WHERE ${conditions.join(' AND ')} ORDER BY entry_date,created_at,id`,
         ...args,
       ).all()
     ).results;
@@ -563,7 +599,7 @@ export function financeService(
       );
     statements.push(
       q(
-        `INSERT INTO ledger_entries(id,user_id,period,name,category,amount_cents,type,status,entry_date,source_key,template_id,created_at,due_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`,
+        `INSERT INTO ledger_entries(id,user_id,period,name,category,amount_cents,type,status,entry_date,source_key,template_id,created_at,due_date,paid_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`,
         id,
         userId,
         period,
@@ -577,6 +613,7 @@ export function financeService(
         repeat === 'once' ? null : templateId,
         now(),
         dueDate,
+        status === 'pago' ? now() : null,
       ),
     );
     if (repeat !== 'once') {
@@ -702,7 +739,9 @@ export function financeService(
       )
         throw new FinanceError('Situação inválida.');
       await q(
-        'UPDATE ledger_entries SET status=? WHERE id=? AND user_id=?',
+        "UPDATE ledger_entries SET paid_at=CASE WHEN ?='pago' THEN CASE WHEN status='pago' THEN paid_at ELSE ? END ELSE NULL END,status=? WHERE id=? AND user_id=?",
+        body.status,
+        now(),
         body.status,
         id,
         userId,
@@ -710,6 +749,49 @@ export function financeService(
     }
     if (body.amount === undefined && extra.length) await db.batch(extra);
     return { ok: true };
+  }
+  async function batchEntries(body: Record<string, unknown>) {
+    await requireProfile();
+    if (
+      !Array.isArray(body.ids) ||
+      !body.ids.length ||
+      body.ids.length > 100 ||
+      body.ids.some((id) => typeof id !== 'string' || !id || id.length > 250)
+    )
+      throw new FinanceError('Selecione de 1 a 100 lançamentos.');
+    if (body.action !== 'pay' && body.action !== 'delete')
+      throw new FinanceError('Ação inválida.');
+    const ids = [...new Set(body.ids as string[])];
+    const placeholders = ids.map(() => '?').join(',');
+    const found = await q(
+      `SELECT id FROM ledger_entries WHERE user_id=? AND deleted_at IS NULL AND id IN (${placeholders})`,
+      userId,
+      ...ids,
+    ).all();
+    if (found.results.length !== ids.length)
+      throw new FinanceError(
+        'Um lançamento não está mais disponível. Atualize a lista.',
+        409,
+      );
+    const timestamp = now();
+    await db.batch(
+      ids.map((id) =>
+        body.action === 'pay'
+          ? q(
+              "UPDATE ledger_entries SET paid_at=CASE WHEN status='pago' THEN paid_at ELSE ? END,status='pago' WHERE id=? AND user_id=? AND deleted_at IS NULL",
+              timestamp,
+              id,
+              userId,
+            )
+          : q(
+              'UPDATE ledger_entries SET deleted_at=? WHERE id=? AND user_id=? AND deleted_at IS NULL',
+              timestamp,
+              id,
+              userId,
+            ),
+      ),
+    );
+    return { ok: true, count: ids.length };
   }
   async function deleteEntry(body: Record<string, unknown>) {
     const id = textValue(body.id, 'lançamento', 250);
@@ -759,5 +841,6 @@ export function financeService(
     createEntry,
     changeEntry,
     deleteEntry,
+    batchEntries,
   };
 }

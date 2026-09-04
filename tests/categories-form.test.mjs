@@ -13,7 +13,7 @@ test('category management defaults to active on every open and filters the list'
   );
   assert.match(
     source,
-    /visibleCategories\(categories,\s*categoryVisibility\)\.map/,
+    /visibleCategories\(\s*categories,\s*categoryVisibility,?\s*\)\.map/,
   );
   assert.match(source, /c\.archived \? 'Ativar' : 'Inativar'/);
   const controls = readFileSync(
@@ -30,6 +30,6 @@ test('category submit button explicitly submits the form', () => {
   );
   assert.match(
     source,
-    /<Button\s+type="submit"\s+disabled=\{busy\}>\s*\{busy\s*\?\s*'Cadastrando…'/,
+    /<Button\s+type="submit"\s+disabled=\{busy\}[\s\S]*?\{busy\s*\?\s*'Cadastrando…'/,
   );
 });
