@@ -16,7 +16,7 @@ Controle financeiro pessoal com visão mensal e anual, receitas, despesas, recor
 - Relatórios por intervalo de datas e seleção de múltiplas categorias.
 - Sininho com alertas e marcação de leitura; estrutura de envio por e-mail com preferências e controle de duplicidade.
 
-> **Estado atual:** código desenvolvido para Cloudflare Workers/D1 e Sites. Ainda não adaptado para Render ou PostgreSQL. O envio ao GitHub não publica o site nem transfere os dados. E-mail e agendamento precisam de configuração externa antes de operar em produção.
+> **Estado atual:** suporta Cloudflare Workers/D1 e também Node.js/PostgreSQL no Render. Consulte [o guia do Render](RENDER.md) para configurar o serviço e migrar os dados. O envio ao GitHub não transfere os dados automaticamente. E-mail e agendamento precisam de configuração externa antes de operar em produção.
 
 ## Arquitetura
 
@@ -130,7 +130,7 @@ pnpm run build
 
 Os testes financeiros usam SQLite isolado e migrações reais, sem escrever na conta do usuário. Cobrem histórico salarial, recorrências, exclusões, notificações, categorias e isolamento de usuários. A verificação de repositório detecta padrões básicos de arquivos privados e credenciais; não substitui revisão humana ou auditoria do histórico Git.
 
-O script `start` atual usa Wrangler para servir o build no ambiente Cloudflare local. **Não é um comando de produção Node pronto para Render.**
+O script `start` usa Wrangler para o ambiente Cloudflare local. No Render, utilize `pnpm build:render` e `pnpm start:render`, conforme [o guia de implantação](RENDER.md).
 
 ## Estrutura do projeto
 
@@ -153,7 +153,7 @@ public/                        Logos e arquivos públicos
 
 ## Hospedagem e segurança
 
-A versão atual depende de bindings Cloudflare e da integração Sites. Para hospedar em outra conta Cloudflare, é necessário configurar os recursos, variáveis e fluxo de deploy. Render exige adaptação de runtime e persistência; essa migração ainda não foi realizada.
+A versão Cloudflare utiliza bindings e a integração Sites. A versão Render utiliza o runtime Node.js e PostgreSQL com TLS. Ambos exigem configuração de variáveis e recursos; siga [RENDER.md](RENDER.md) para o Render. Os bancos dos dois ambientes são independentes e não sincronizam automaticamente.
 
 Antes de publicar:
 

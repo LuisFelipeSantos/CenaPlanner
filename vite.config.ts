@@ -3,6 +3,7 @@ import tailwindcss from '@tailwindcss/postcss';
 import vinext from 'vinext';
 import { defineConfig, loadEnv } from 'vite';
 import hostingConfig from './.openai/hosting.json';
+import { fileURLToPath } from 'node:url';
 
 const { d1, r2 } = hostingConfig;
 
@@ -42,6 +43,19 @@ function localBindings(settings: Record<string, string>) {
 
 export default defineConfig(async ({ mode }) => {
   const settings = loadEnv(mode, process.cwd(), '');
+  if (process.env.DEPLOY_TARGET === 'node') {
+    return {
+      css: { postcss: { plugins: [tailwindcss()] } },
+      resolve: {
+        alias: {
+          'cloudflare:workers': fileURLToPath(
+            new URL('./db/node-env.ts', import.meta.url),
+          ),
+        },
+      },
+      plugins: [vinext()],
+    };
+  }
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
   process.env.WRANGLER_WRITE_LOGS ??= 'false';
