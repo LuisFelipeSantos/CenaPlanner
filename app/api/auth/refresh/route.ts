@@ -1,8 +1,8 @@
 import { cookies } from 'next/headers';
+import { isAllowedOrigin } from '../../../request-origin.ts';
 import { clearSession, setSession, supabaseRequest } from '@/app/supabase-auth';
 export async function POST(request: Request) {
-  const origin = request.headers.get('origin');
-  if (origin && origin !== new URL(request.url).origin) return Response.json({ error: 'Solicitação não permitida.' }, { status: 403 });
+  if (!isAllowedOrigin(request)) return Response.json({ error: 'Solicitação não permitida.' }, { status: 403 });
   const refresh = (await cookies()).get('finance_refresh_token')?.value;
   if (!refresh) return Response.json({ ok: false }, { status: 401 });
   try {

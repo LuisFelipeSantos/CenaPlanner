@@ -1,3 +1,4 @@
+import { isAllowedOrigin } from './request-origin.ts';
 // Framework-independent so tests exercise the same validation as the routes.
 type Session = { access_token: string; refresh_token: string; expires_in?: number };
 type Dependencies = { request: (path: string, init?: RequestInit) => Promise<Response>; saveSession: (access: string, refresh: string, expires?: number) => Promise<void> };
@@ -13,8 +14,7 @@ export function authError(status: number, code?: string): string {
 }
 export async function handleAuth(request: Request, mode: 'login' | 'signup', deps: Dependencies) {
   const reply = (body: object, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
-  const origin = request.headers.get('origin');
-  if (origin && origin !== new URL(request.url).origin) return reply({ error: 'Solicitação não permitida.' }, 403);
+  if (!isAllowedOrigin(request)) return reply({ error: 'Solicitação não permitida.' }, 403);
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return reply({ error: 'Dados inválidos. Reenvie o formulário.' }, 400); }
   if (!body || typeof body !== 'object') return reply({ error: 'Dados inválidos.' }, 400);

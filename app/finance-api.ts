@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { isAllowedOrigin } from './request-origin.ts';
 import { getAppUser } from './supabase-auth';
 import { financeService, FinanceError } from './finance-service';
 export async function financeApi(
@@ -14,11 +15,9 @@ export async function financeApi(
     const user = await getAppUser();
     if (!user)
       return reply({ error: 'Sua sessão expirou. Entre novamente.' }, 401);
-    const origin = request.headers.get('origin');
     if (
       request.method !== 'GET' &&
-      origin &&
-      origin !== new URL(request.url).origin
+      !isAllowedOrigin(request)
     )
       return reply({ error: 'Solicitação não permitida.' }, 403);
     let body: Record<string, unknown> = {};
