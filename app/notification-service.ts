@@ -9,8 +9,12 @@ export type Delivery = {
   channel: 'email';
   to: string;
   message: string;
+  subject: string;
+  text: string;
+  html: string;
   idempotencyKey: string;
 };
+import { financialEmail } from './notification-email.ts';
 export type Senders = Partial<
   Record<'email', (delivery: Delivery) => Promise<void>>
 >;
@@ -65,10 +69,9 @@ export function notificationService(db: D1Database) {
     const rows = await q(
       `SELECT e.id,e.user_id,e.due_date,p.in_app,p.email_enabled
       FROM ledger_entries e JOIN notification_preferences p ON p.user_id=e.user_id
-      WHERE e.type='expense' AND e.status!='pago' AND e.deleted_at IS NULL AND e.due_date IN (?,?,?,?) AND e.id>? ${userId ? 'AND e.user_id=?' : ''}
+      WHERE e.type='expense' AND e.status!='pago' AND e.deleted_at IS NULL AND e.due_date IN (?,?,?) AND e.id>? ${userId ? 'AND e.user_id=?' : ''}
       ORDER BY e.id LIMIT 200`,
       today,
-      offsetDate(today, 1),
       offsetDate(today, 3),
       offsetDate(today, 7),
       cursor,
@@ -105,6 +108,16 @@ export function notificationService(db: D1Database) {
     }
     // D1 batch is atomic; each event/channel has an independent deduplication key.
     if (statements.length) await db.batch(statements);
+    if (today.endsWith('-01') && !cursor) {
+      const pendingUsers = await q(
+        `SELECT p.user_id FROM notification_preferences p WHERE p.email_enabled=1 AND EXISTS (SELECT 1 FROM ledger_entries e WHERE e.user_id=p.user_id AND e.type='expense' AND e.status!='pago' AND e.deleted_at IS NULL AND e.period<?) ${userId ? 'AND p.user_id=?' : ''} ORDER BY p.user_id`,
+        today.slice(0, 7),
+        ...(userId ? [userId] : []),
+      ).all<{ user_id: string }>();
+      const created = new Date().toISOString();
+      for (const user of pendingUsers.results)
+        await q('INSERT INTO notification_jobs(id,user_id,entry_id,due_date,offset_days,channel,status,created_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(entry_id,due_date,offset_days,channel) DO NOTHING', crypto.randomUUID(), user.user_id, `monthly:${user.user_id}`, today, 999, 'email', 'pending', created).run();
+    }
     return {
       processed: rows.results.length,
       nextCursor: rows.results.length === 200 ? rows.results.at(-1)!.id : null,
@@ -177,8 +190,18 @@ export function notificationService(db: D1Database) {
         job.id,
       ).first<{ lease_token: string }>();
       if (owned?.lease_token !== lease) continue;
+      if (job.offset_days === 999 && job.entry_id.startsWith('monthly:')) {
+        const pref = await q('SELECT email,email_enabled FROM notification_preferences WHERE user_id=?', job.user_id).first<NotificationPrefs>();
+        const pending = await q("SELECT name,due_date AS dueDate,amount_cents AS amountCents FROM ledger_entries WHERE user_id=? AND type='expense' AND status!='pago' AND deleted_at IS NULL AND period<? ORDER BY due_date,name", job.user_id, today.slice(0, 7)).all<{ name: string; dueDate: string | null; amountCents: number }>();
+        if (!pref?.email_enabled || !pending.results.length) { await q("UPDATE notification_jobs SET status='cancelled',lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?", job.id, lease).run(); continue; }
+        const sender = senders.email;
+        if (!sender) { await q("UPDATE notification_jobs SET status='blocked',last_error='provider_not_configured',next_attempt_at=?,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?", new Date(now.getTime() + 3600000).toISOString(), job.id, lease).run(); continue; }
+        try { const content = financialEmail('monthly', pending.results); await sender({ channel: 'email', to: pref.email, message: content.text, ...content, idempotencyKey: job.id }); await q("UPDATE notification_jobs SET status='sent',sent_at=?,attempts=attempts+1,last_error=NULL,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?", stamp, job.id, lease).run(); sent++; }
+        catch { await q("UPDATE notification_jobs SET status='failed',attempts=attempts+1,last_error='delivery_failed',next_attempt_at=?,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?", new Date(now.getTime() + 60000 * 2 ** job.attempts).toISOString(), job.id, lease).run(); }
+        continue;
+      }
       const row = await q(
-        'SELECT e.name,e.status,e.deleted_at,e.due_date,p.* FROM ledger_entries e JOIN notification_preferences p ON p.user_id=e.user_id WHERE e.id=? AND e.user_id=?',
+        'SELECT e.name,e.amount_cents,e.status,e.deleted_at,e.due_date,p.* FROM ledger_entries e JOIN notification_preferences p ON p.user_id=e.user_id WHERE e.id=? AND e.user_id=?',
         job.entry_id,
         job.user_id,
       ).first<
@@ -187,6 +210,7 @@ export function notificationService(db: D1Database) {
           status: string;
           deleted_at: string | null;
           due_date: string | null;
+          amount_cents: number;
         }
       >();
       const enabled = row?.email_enabled;
@@ -216,10 +240,12 @@ export function notificationService(db: D1Database) {
         continue;
       }
       try {
+        const content = financialEmail('due', [{ name: row.name, dueDate: row.due_date, amountCents: row.amount_cents }], job.offset_days);
         await sender({
           channel: job.channel,
           to: row.email,
-          message: `Lembrete: ${row.name} vence em ${job.due_date.split('-').reverse().join('/')}. Consulte seu controle financeiro.`,
+          message: content.text,
+          ...content,
           idempotencyKey: job.id,
         });
         await q(

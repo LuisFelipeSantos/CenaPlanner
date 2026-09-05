@@ -187,7 +187,7 @@ test('count invalid values fail before financial writes', async () => {
     0,
   );
 });
-test('due notifications are generated exactly once at D-7 D-3 D-1 and D0', async () => {
+test('due notifications are generated exactly once at D-7 D-3 and D0', async () => {
   const { finance, notifications, sqlite } = await initialized();
   await finance.createEntry(draft({ repeat: 'once' }));
   for (const date of [
@@ -201,15 +201,15 @@ test('due notifications are generated exactly once at D-7 D-3 D-1 and D0', async
   ])
     await notifications.scan(date, 'a');
   const list = await notifications.list('a');
-  assert.equal(list.unread, 4);
+  assert.equal(list.unread, 3);
   assert.equal(
     sqlite.prepare('SELECT count(*) AS n FROM notification_jobs').get().n,
-    4,
+    3,
   );
   await notifications.markRead('b', list.items[0].id);
-  assert.equal((await notifications.list('a')).unread, 4);
-  await notifications.markRead('a', list.items[0].id);
   assert.equal((await notifications.list('a')).unread, 3);
+  await notifications.markRead('a', list.items[0].id);
+  assert.equal((await notifications.list('a')).unread, 2);
 });
 test('paid deleted and undated expenses do not notify', async () => {
   const { finance, notifications } = await initialized();
@@ -339,6 +339,21 @@ test('failed provider retries with backoff and preserves idempotency key', async
 });
 test('business dates use Sao Paulo near UTC midnight', () => {
   assert.equal(localDate(new Date('2026-12-13T01:00:00Z')), '2026-12-12');
+});
+
+test('month opening queues one consolidated email only when prior expenses remain pending', async () => {
+  const { notifications, finance, sqlite } = await initialized();
+  await notifications.savePreferences('a', 'a@example.invalid', { inApp: true, emailEnabled: true });
+  await finance.createEntry(draft({ repeat: 'once', dueDate: '2026-12-15' }));
+  await notifications.scan('2027-01-01', 'a');
+  await notifications.scan('2027-01-01', 'a');
+  const deliveries = [];
+  await notifications.dispatch({ email: async d => deliveries.push(d) }, new Date('2027-01-01T12:00:00Z'));
+  assert.equal(deliveries.length, 1);
+  assert.match(deliveries[0].subject, /pendências/i);
+  assert.match(deliveries[0].html, /R\$.*100,00/);
+  assert.match(deliveries[0].html, /cenaplanner\.onrender\.com/);
+  assert.equal(sqlite.prepare("SELECT count(*) AS n FROM notification_jobs WHERE offset_days=999").get().n, 1);
 });
 
 test('category normalization combines case and whitespace; selected categories are OR filters and user scoped', async () => {
