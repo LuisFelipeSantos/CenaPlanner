@@ -8,6 +8,29 @@ export function deliveryAdapters(config: {
   GMAIL_APP_PASSWORD?: string;
 }): Senders {
   const senders: Senders = {};
+  const gatewayUrl = config.EMAIL_GATEWAY_URL?.trim();
+  const gatewayToken = config.NOTIFICATION_GATEWAY_TOKEN?.trim();
+  if (gatewayUrl && gatewayToken) {
+    if (new URL(gatewayUrl).protocol !== 'https:') throw new Error('HTTPS required');
+    senders.email = async (delivery: Delivery) => {
+      const response = await fetch(gatewayUrl, {
+        method: 'POST', redirect: 'error',
+        headers: {
+          'content-type': 'application/json',
+          Authorization: `Bearer ${gatewayToken}`,
+          'Idempotency-Key': delivery.idempotencyKey,
+        },
+        // Apps Script Web Apps do not expose arbitrary request headers to doPost,
+        // so the secret is duplicated in the TLS-protected JSON body.
+        body: JSON.stringify({ ...delivery, gatewayToken }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) throw new Error('Delivery failed');
+      const result = (await response.json().catch(() => null)) as { ok?: boolean } | null;
+      if (!result?.ok) throw new Error('Delivery was not acknowledged');
+    };
+    return senders;
+  }
   const gmailUser = config.GMAIL_SMTP_USER?.trim();
   const gmailPassword = config.GMAIL_APP_PASSWORD?.replace(/\s/g, '');
   if (gmailUser && gmailPassword) {
@@ -25,25 +48,6 @@ export function deliveryAdapters(config: {
       });
     };
     return senders;
-  }
-  for (const channel of ['email'] as const) {
-    const url = config.EMAIL_GATEWAY_URL;
-    if (!url || !config.NOTIFICATION_GATEWAY_TOKEN) continue;
-    if (new URL(url).protocol !== 'https:') throw new Error('HTTPS required');
-    senders[channel] = async (delivery: Delivery) => {
-      const response = await fetch(url, {
-        method: 'POST',
-        redirect: 'error',
-        headers: {
-          'content-type': 'application/json',
-          Authorization: `Bearer ${config.NOTIFICATION_GATEWAY_TOKEN}`,
-          'Idempotency-Key': delivery.idempotencyKey,
-        },
-        body: JSON.stringify(delivery),
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!response.ok) throw new Error('Delivery failed');
-    };
   }
   return senders;
 }

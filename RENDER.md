@@ -12,7 +12,12 @@ Há dois destinos de build: `pnpm build` preserva Cloudflare/D1; `pnpm build:ren
 - Start: `pnpm start:render`
 - `PORT`: fornecida pelo Render; o servidor escuta em `0.0.0.0`.
 - Variáveis privadas: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`.
-- Para envio pelo Gmail: `GMAIL_SMTP_USER` e `GMAIL_APP_PASSWORD` (senha de app; nunca a senha normal da conta).
+- No plano gratuito do Render, use o gateway HTTPS do Google Apps Script: publique
+  `scripts/google-apps-script-email-gateway.gs` como Web App executado pelo proprietário,
+  crie a propriedade de script `GATEWAY_TOKEN` e configure `EMAIL_GATEWAY_URL` e
+  `NOTIFICATION_GATEWAY_TOKEN` no Render. A URL do gateway sempre tem prioridade.
+- `GMAIL_SMTP_USER` e `GMAIL_APP_PASSWORD` só funcionam em instâncias pagas do Render,
+  pois o plano gratuito bloqueia conexões SMTP nas portas 25, 465 e 587.
 - Adicione `prod-ca-2021.crt` como arquivo secreto e configure `PGSSLROOTCERT=/etc/secrets/prod-ca-2021.crt`.
 - Não coloque a senha no repositório nem use prefixos de variáveis públicas.
 
