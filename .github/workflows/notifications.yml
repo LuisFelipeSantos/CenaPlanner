@@ -15,9 +15,11 @@ jobs:
         env:
           ENDPOINT: ${{ secrets.NOTIFICATION_ENDPOINT }}
           TOKEN: ${{ secrets.NOTIFICATION_CRON_SECRET }}
-        run: test -n "$ENDPOINT" && test -n "$TOKEN"
+        run: |
+          test -n "$ENDPOINT" && test -n "$TOKEN"
       - name: Gerar e enviar notificações
         env:
           ENDPOINT: ${{ secrets.NOTIFICATION_ENDPOINT }}
           TOKEN: ${{ secrets.NOTIFICATION_CRON_SECRET }}
-        run: curl --fail-with-body --retry 2 --max-time 120 -X POST -H "Authorization: Bearer $TOKEN" "$ENDPOINT"
+        run: |
+          curl --fail-with-body --retry 2 --max-time 120 -X POST -H "Authorization: Bearer $TOKEN" "$ENDPOINT"
