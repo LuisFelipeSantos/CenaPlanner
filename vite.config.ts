@@ -47,8 +47,11 @@ export default defineConfig(async ({ mode }) => {
     return {
       css: { postcss: { plugins: [tailwindcss()] } },
       resolve: {
-        alias: {
-          'cloudflare:workers': fileURLToPath(
+      alias: {
+        '@/app/notification-delivery': fileURLToPath(
+          new URL('./app/notification-delivery-node.ts', import.meta.url),
+        ),
+        'cloudflare:workers': fileURLToPath(
             new URL('./db/node-env.ts', import.meta.url),
           ),
         },

@@ -12,6 +12,7 @@ Há dois destinos de build: `pnpm build` preserva Cloudflare/D1; `pnpm build:ren
 - Start: `pnpm start:render`
 - `PORT`: fornecida pelo Render; o servidor escuta em `0.0.0.0`.
 - Variáveis privadas: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`.
+- Para envio pelo Gmail: `GMAIL_SMTP_USER` e `GMAIL_APP_PASSWORD` (senha de app; nunca a senha normal da conta).
 - Adicione `prod-ca-2021.crt` como arquivo secreto e configure `PGSSLROOTCERT=/etc/secrets/prod-ca-2021.crt`.
 - Não coloque a senha no repositório nem use prefixos de variáveis públicas.
 
