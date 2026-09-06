@@ -14,7 +14,7 @@ export function deliveryAdapters(config: {
     if (new URL(gatewayUrl).protocol !== 'https:') throw new Error('HTTPS required');
     senders.email = async (delivery: Delivery) => {
       const response = await fetch(gatewayUrl, {
-        method: 'POST', redirect: 'error',
+        method: 'POST', redirect: 'follow',
         headers: {
           'content-type': 'application/json',
           Authorization: `Bearer ${gatewayToken}`,

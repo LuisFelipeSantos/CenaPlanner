@@ -53,3 +53,8 @@ function digest_(value) {
 function json_(value) {
   return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);
 }
+
+// Run once from the editor to grant the Gmail scope. It does not send email.
+function authorizeGmail() {
+  GmailApp.getAliases();
+}
