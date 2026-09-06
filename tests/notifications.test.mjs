@@ -187,7 +187,7 @@ test('count invalid values fail before financial writes', async () => {
     0,
   );
 });
-test('due notifications are generated exactly once at D-7 D-3 and D0', async () => {
+test('due notifications are generated exactly once at D-7 D-3 D-1 and D0', async () => {
   const { finance, notifications, sqlite } = await initialized();
   await finance.createEntry(draft({ repeat: 'once' }));
   for (const date of [
@@ -201,15 +201,15 @@ test('due notifications are generated exactly once at D-7 D-3 and D0', async () 
   ])
     await notifications.scan(date, 'a');
   const list = await notifications.list('a');
-  assert.equal(list.unread, 3);
+  assert.equal(list.unread, 4);
   assert.equal(
     sqlite.prepare('SELECT count(*) AS n FROM notification_jobs').get().n,
-    3,
+    4,
   );
   await notifications.markRead('b', list.items[0].id);
-  assert.equal((await notifications.list('a')).unread, 3);
+  assert.equal((await notifications.list('a')).unread, 4);
   await notifications.markRead('a', list.items[0].id);
-  assert.equal((await notifications.list('a')).unread, 2);
+  assert.equal((await notifications.list('a')).unread, 3);
 });
 test('paid deleted and undated expenses do not notify', async () => {
   const { finance, notifications } = await initialized();
@@ -300,6 +300,23 @@ test('dispatcher uses linked email and stable idempotency key, with no duplicate
   assert.equal(deliveries.length, 1);
   assert.equal(deliveries[0].to, 'linked@example.invalid');
   assert.ok(deliveries[0].idempotencyKey);
+});
+test('due email consolidates all matching milestones for the user', async () => {
+  const { notifications, finance, sqlite } = await initialized();
+  await notifications.savePreferences('a', 'linked@example.invalid', {
+    inApp: true,
+    emailEnabled: true,
+  });
+  await finance.createEntry(draft({ name: 'Vence hoje', repeat: 'once', dueDate: '2026-12-12' }));
+  await finance.createEntry(draft({ name: 'Vence em três dias', repeat: 'once', dueDate: '2026-12-15' }));
+  await notifications.scan('2026-12-12', 'a');
+  const deliveries = [];
+  await notifications.dispatch({ email: async d => deliveries.push(d) }, new Date('2026-12-12T12:00:00Z'));
+  assert.equal(deliveries.length, 1);
+  assert.match(deliveries[0].subject, /2 contas/);
+  assert.match(deliveries[0].html, /Vence hoje/);
+  assert.match(deliveries[0].html, /Vence em três dias/);
+  assert.equal(sqlite.prepare("SELECT count(*) AS n FROM notification_jobs WHERE channel='email'").get().n, 1);
 });
 test('failed provider retries with backoff and preserves idempotency key', async () => {
   const { notifications, finance, sqlite } = await initialized();
