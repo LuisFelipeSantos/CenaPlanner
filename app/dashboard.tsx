@@ -44,6 +44,7 @@ import ReportCharts from './report-charts';
 import NotificationCenter from './notification-center';
 import { dueDays, dueGroup, saoPauloDate } from './due-alerts';
 import DueDateBadge from './due-date-badge';
+import PwaInstall from './pwa-install';
 type Entry = {
   id: string;
   name: string;
@@ -1451,13 +1452,17 @@ export default function Dashboard({
                   aria-busy={busy}
                 >
                   {profile && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => open('categories')}
-                    >
-                      Gerenciar categorias
-                    </Button>
+                    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-sm font-semibold">Aplicativo</p>
+                      <PwaInstall />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => open('categories')}
+                      >
+                        Gerenciar categorias
+                      </Button>
+                    </div>
                   )}
                   <label className="block" htmlFor="finance-name">
                     Seu nome

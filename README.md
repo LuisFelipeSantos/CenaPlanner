@@ -15,6 +15,16 @@ Controle financeiro pessoal com visão mensal e anual, receitas, despesas, recor
 - Dashboard anual com receitas, despesas, saldo e distribuição por categoria.
 - Relatórios por intervalo de datas e seleção de múltiplas categorias.
 - Sininho com alertas e marcação de leitura; estrutura de envio por e-mail com preferências e controle de duplicidade.
+- PWA instalável no Android, computadores e pela opção “Adicionar à Tela de Início” no iPhone.
+
+## Aplicativo instalável (PWA)
+
+O CenaPlanner pode ser instalado a partir das Configurações. A PWA usa o mesmo endereço, autenticação, APIs e banco da versão web: instalar ou remover o aplicativo não altera nenhum dado financeiro.
+
+O service worker armazena somente a página offline e arquivos públicos de identidade visual. Rotas `/api`, respostas financeiras, cookies, sessões e solicitações de escrita não são armazenados em Cache Storage. Consultas, lançamentos e alterações continuam exigindo internet.
+
+- **Android/Chrome e computadores compatíveis:** abra Configurações e use “Instalar aplicativo” quando o navegador disponibilizar a opção.
+- **iPhone/iPad:** no Safari, use “Compartilhar → Adicionar à Tela de Início”.
 
 > **Estado atual:** suporta Cloudflare Workers/D1 e também Node.js/PostgreSQL no Render. Consulte [o guia do Render](RENDER.md) para configurar o serviço e migrar os dados. O envio ao GitHub não transfere os dados automaticamente. E-mail e agendamento precisam de configuração externa antes de operar em produção.
 

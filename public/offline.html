@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#184e3a" />
+    <title>Sem conexão — CenaPlanner</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #f5f7f4; color: #17231d; font: 16px system-ui, sans-serif; }
+      main { width: min(100%, 440px); padding: 32px; text-align: center; background: white; border: 1px solid #e5e7eb; border-radius: 20px; box-shadow: 0 8px 30px rgb(15 23 42 / 8%); }
+      img { width: 88px; height: 88px; border-radius: 20px; object-fit: cover; }
+      h1 { margin: 20px 0 8px; font-size: 24px; }
+      p { margin: 0 0 24px; color: #526159; line-height: 1.5; }
+      button { border: 0; border-radius: 10px; padding: 11px 18px; background: #184e3a; color: white; font: inherit; font-weight: 600; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icons/icon-192.png" alt="Logo do CenaPlanner" />
+      <h1>Você está sem conexão</h1>
+      <p>A interface básica está disponível, mas consultar ou alterar seus dados financeiros exige internet.</p>
+      <button type="button" onclick="location.reload()">Tentar novamente</button>
+    </main>
+  </body>
+</html>
