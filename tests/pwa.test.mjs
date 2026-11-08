@@ -24,7 +24,7 @@ test('service worker excludes APIs and every non-GET request from caching', () =
 
 test('layout exposes manifest and iPhone installation metadata', () => {
   const layout = readFileSync('app/layout.tsx', 'utf8');
-  assert.match(layout, /manifest: '\/manifest\.webmanifest'/);
+  assert.match(layout, /manifest: '\/manifest\.webmanifest\?v=1'/);
   assert.match(layout, /apple-mobile-web-app-capable/);
   assert.match(layout, /apple-touch-icon\.png/);
   assert.match(layout, /themeColor: '#184e3a'/);

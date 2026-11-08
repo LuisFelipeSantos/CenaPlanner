@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: 'CenaPlanner — Finanças pessoais',
   description: 'Organize receitas, contas e despesas mensais em um só lugar.',
   applicationName: 'CenaPlanner',
-  manifest: '/manifest.webmanifest',
+  manifest: '/manifest.webmanifest?v=1',
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
