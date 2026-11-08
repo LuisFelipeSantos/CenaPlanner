@@ -9,13 +9,13 @@ export const metadata: Metadata = {
   title: 'CenaPlanner — Finanças pessoais',
   description: 'Organize receitas, contas e despesas mensais em um só lugar.',
   applicationName: 'CenaPlanner',
-  manifest: '/manifest.webmanifest?v=1',
+  manifest: '/manifest.webmanifest?v=2',
   icons: {
     icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/favicon-v2.png', sizes: '48x48', type: 'image/png' },
+      { url: '/icons/icon-192-v2.png', sizes: '192x192', type: 'image/png' },
     ],
-    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    apple: [{ url: '/icons/apple-touch-icon-v2.png', sizes: '180x180', type: 'image/png' }],
   },
   appleWebApp: {
     capable: true,

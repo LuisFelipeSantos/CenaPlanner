@@ -1,12 +1,12 @@
-const CACHE_NAME = 'cenaplanner-public-v1';
+const CACHE_NAME = 'cenaplanner-public-v2';
 const PUBLIC_ASSETS = [
   '/offline.html',
   '/manifest.webmanifest',
-  '/favicon.svg',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/icon-maskable-512.png',
-  '/icons/apple-touch-icon.png',
+  '/icons/favicon-v2.png',
+  '/icons/icon-192-v2.png',
+  '/icons/icon-512-v2.png',
+  '/icons/icon-maskable-512-v2.png',
+  '/icons/apple-touch-icon-v2.png',
 ];
 
 self.addEventListener('install', (event) => {
